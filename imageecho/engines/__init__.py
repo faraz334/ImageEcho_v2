@@ -4,6 +4,8 @@ from .lsb      import LsbEngine
 from .dct      import DctEngine
 from .cw       import CwEngine
 from .deepfool import DeepFoolEngine
+from .autopgd  import AutoPgdEngine
+from .patch    import PatchEngine
 
 __all__ = [
     "FgsmEngine",
@@ -12,4 +14,6 @@ __all__ = [
     "DctEngine",
     "CwEngine",
     "DeepFoolEngine",
+    "AutoPgdEngine",
+    "PatchEngine",
 ]
