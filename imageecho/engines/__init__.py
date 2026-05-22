@@ -6,6 +6,8 @@ from .cw       import CwEngine
 from .deepfool import DeepFoolEngine
 from .autopgd  import AutoPgdEngine
 from .patch    import PatchEngine
+from .gaussian import GaussianEngine
+from .jsma     import JsmaEngine
 
 __all__ = [
     "FgsmEngine",
@@ -16,4 +18,6 @@ __all__ = [
     "DeepFoolEngine",
     "AutoPgdEngine",
     "PatchEngine",
+    "GaussianEngine",
+    "JsmaEngine",
 ]
