@@ -8,16 +8,18 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QComboBox, QSlider, QFileDialog,
     QStatusBar, QFrame, QTabWidget
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui  import QPixmap, QImage, QDragEnterEvent, QDropEvent
+from PyQt6.QtCore    import Qt, QThread, pyqtSignal
+from PyQt6.QtGui     import QPixmap, QImage, QDragEnterEvent, QDropEvent, QKeySequence, QShortcut
 
 from imageecho.engines import (
     FgsmEngine, PgdEngine, LsbEngine, DctEngine,
     CwEngine, DeepFoolEngine, AutoPgdEngine,
     PatchEngine, GaussianEngine, JsmaEngine
 )
-from imageecho.context import EchoContext
-from gui.benchmark_panel import BenchmarkPanel
+from imageecho.context        import EchoContext
+from gui.benchmark_panel      import BenchmarkPanel
+from gui.heatmap_panel        import HeatmapPanel
+from gui.settings_panel       import SettingsPanel
 
 
 ENGINE_MAP = {
@@ -73,7 +75,7 @@ class ImagePanel(QLabel):
     def __init__(self, title: str):
         super().__init__()
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setMinimumSize(400, 320)
+        self.setMinimumSize(400, 300)
         self.setStyleSheet("""
             QLabel {
                 background: #1e1e2e;
@@ -87,9 +89,9 @@ class ImagePanel(QLabel):
         self.setAcceptDrops(True)
 
     def set_image(self, img: np.ndarray):
-        h, w, c  = img.shape
-        qimg     = QImage(img.data, w, h, c * w, QImage.Format.Format_RGB888)
-        pixmap   = QPixmap.fromImage(qimg)
+        h, w, c = img.shape
+        qimg    = QImage(img.data, w, h, c * w, QImage.Format.Format_RGB888)
+        pixmap  = QPixmap.fromImage(qimg)
         self.setPixmap(pixmap.scaled(
             self.width(), self.height(),
             Qt.AspectRatioMode.KeepAspectRatio,
@@ -114,7 +116,14 @@ class MainWindow(QMainWindow):
         self._image_np = None
         self._adv_np   = None
         self._worker   = None
+
+        # Create panels FIRST before any tab building
+        self.settings_panel  = SettingsPanel()
+        self.benchmark_panel = BenchmarkPanel()
+        self.heatmap_panel   = HeatmapPanel()
+
         self._setup_ui()
+        self._setup_shortcuts()
         self._apply_dark_theme()
 
     def _setup_ui(self):
@@ -127,33 +136,26 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tabs.setStyleSheet("""
-            QTabWidget::pane {
-                border: none;
-                background: #13131f;
-            }
+            QTabWidget::pane { border:none; background:#13131f; }
             QTabBar::tab {
-                background: #1a1a2e;
-                color: #888899;
-                padding: 8px 24px;
-                border: none;
-                font-size: 13px;
+                background:#1a1a2e; color:#888899;
+                padding:8px 20px; border:none; font-size:13px;
             }
             QTabBar::tab:selected {
-                background: #2d2d4e;
-                color: #ddddff;
-                border-bottom: 2px solid #7777cc;
+                background:#2d2d4e; color:#ddddff;
+                border-bottom:2px solid #7777cc;
             }
-            QTabBar::tab:hover { background: #222240; }
+            QTabBar::tab:hover { background:#222240; }
         """)
 
-        # Tab 1 — Attack
         self.tab_attack = QWidget()
         self._build_attack_tab()
-        self.tabs.addTab(self.tab_attack, "⚡  Attack")
-
-        # Tab 2 — Benchmark
-        self.benchmark_panel = BenchmarkPanel()
+        self.tabs.addTab(self.tab_attack,      "⚡  Attack")
         self.tabs.addTab(self.benchmark_panel, "📊  Benchmark")
+        self.tabs.addTab(self.heatmap_panel,   "🔥  Heatmap")
+
+        self.settings_panel.settings_changed.connect(self._on_settings_changed)
+        self.tabs.addTab(self.settings_panel,  "⚙️  Settings")
 
         root.addWidget(self.tabs)
 
@@ -166,7 +168,6 @@ class MainWindow(QMainWindow):
         layout.setSpacing(12)
         layout.setContentsMargins(16, 16, 16, 16)
 
-        # Toolbar
         toolbar = QHBoxLayout()
 
         self.btn_open = QPushButton("Open Image")
@@ -180,15 +181,15 @@ class MainWindow(QMainWindow):
         self.combo_engine.currentTextChanged.connect(self._engine_changed)
 
         self.lbl_desc = QLabel(ENGINE_DESC["FGSM"])
-        self.lbl_desc.setStyleSheet("color: #888899; font-size: 12px;")
+        self.lbl_desc.setStyleSheet("color:#888899; font-size:12px;")
 
         self.lbl_eps = QLabel("ε = 8/255")
         self.lbl_eps.setFixedWidth(80)
-        self.lbl_eps.setStyleSheet("color: #aaaacc; font-size: 12px;")
+        self.lbl_eps.setStyleSheet("color:#aaaacc; font-size:12px;")
 
         self.slider_eps = QSlider(Qt.Orientation.Horizontal)
         self.slider_eps.setRange(1, 32)
-        self.slider_eps.setValue(8)
+        self.slider_eps.setValue(self.settings_panel.get("default_epsilon"))
         self.slider_eps.setFixedWidth(160)
         self.slider_eps.valueChanged.connect(self._eps_changed)
 
@@ -214,10 +215,8 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.btn_save)
         layout.addLayout(toolbar)
 
-        # Image panels
         panels = QHBoxLayout()
         panels.setSpacing(12)
-
         left  = QVBoxLayout()
         right = QVBoxLayout()
 
@@ -235,12 +234,10 @@ class MainWindow(QMainWindow):
         left.addWidget(self.panel_orig)
         right.addWidget(lbl_r)
         right.addWidget(self.panel_adv)
-
         panels.addLayout(left)
         panels.addLayout(right)
         layout.addLayout(panels)
 
-        # Metrics bar
         mframe = QFrame()
         mframe.setStyleSheet(
             "QFrame{background:#1a1a2e;border-radius:8px;padding:4px;}"
@@ -272,49 +269,63 @@ class MainWindow(QMainWindow):
         lbl.setMinimumWidth(120)
         return lbl
 
+    def _setup_shortcuts(self):
+        QShortcut(QKeySequence("Ctrl+O"), self).activated.connect(self._open_image)
+        QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self._run_attack)
+        QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self._save_output)
+        QShortcut(QKeySequence("Ctrl+B"), self).activated.connect(
+            lambda: self.tabs.setCurrentIndex(1))
+        QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(
+            lambda: self.tabs.setCurrentIndex(2))
+
     def _apply_dark_theme(self):
         self.setStyleSheet("""
             QMainWindow, QWidget {
-                background: #13131f;
-                color: #ccccee;
-                font-family: 'Segoe UI', sans-serif;
-                font-size: 13px;
+                background:#13131f; color:#ccccee;
+                font-family:'Segoe UI',sans-serif; font-size:13px;
             }
             QPushButton {
-                background: #2d2d4e;
-                color: #ddddff;
-                border: 1px solid #444466;
-                border-radius: 6px;
-                padding: 4px 14px;
+                background:#2d2d4e; color:#ddddff;
+                border:1px solid #444466; border-radius:6px;
+                padding:4px 14px;
             }
-            QPushButton:hover   { background: #3d3d6e; }
-            QPushButton:pressed { background: #5555aa; }
-            QPushButton:disabled { background: #1a1a2e; color: #555566; }
+            QPushButton:hover   { background:#3d3d6e; }
+            QPushButton:pressed { background:#5555aa; }
+            QPushButton:disabled { background:#1a1a2e; color:#555566; }
             QComboBox {
-                background: #2d2d4e;
-                color: #ddddff;
-                border: 1px solid #444466;
-                border-radius: 6px;
-                padding: 4px 8px;
+                background:#2d2d4e; color:#ddddff;
+                border:1px solid #444466; border-radius:6px;
+                padding:4px 8px;
             }
             QComboBox QAbstractItemView {
-                background: #2d2d4e;
-                color: #ddddff;
-                selection-background-color: #5555aa;
+                background:#2d2d4e; color:#ddddff;
+                selection-background-color:#5555aa;
             }
             QSlider::groove:horizontal {
-                background: #2d2d4e;
-                height: 6px;
-                border-radius: 3px;
+                background:#2d2d4e; height:6px; border-radius:3px;
             }
             QSlider::handle:horizontal {
-                background: #7777cc;
-                width: 14px;
-                height: 14px;
-                margin: -4px 0;
-                border-radius: 7px;
+                background:#7777cc; width:14px; height:14px;
+                margin:-4px 0; border-radius:7px;
             }
-            QStatusBar { background: #0d0d1a; color: #888899; }
+            QLineEdit {
+                background:#1a1a2e; color:#ccccee;
+                border:1px solid #333355; border-radius:4px;
+                padding:4px 8px;
+            }
+            QSpinBox, QDoubleSpinBox {
+                background:#1a1a2e; color:#ccccee;
+                border:1px solid #333355; border-radius:4px;
+                padding:2px 6px;
+            }
+            QCheckBox { color:#ccccee; }
+            QCheckBox::indicator {
+                width:14px; height:14px;
+                border:1px solid #444466; border-radius:3px;
+                background:#1a1a2e;
+            }
+            QCheckBox::indicator:checked { background:#7777cc; }
+            QStatusBar { background:#0d0d1a; color:#888899; }
         """)
 
     # ------------------------------------------------------------------ #
@@ -369,10 +380,20 @@ class MainWindow(QMainWindow):
         self.btn_run.setEnabled(True)
         self.btn_save.setEnabled(True)
         self._update_metrics(report)
+        self.heatmap_panel.set_images(self._image_np, adv_np)
+
+        if self.settings_panel.get("auto_save"):
+            folder = Path(self.settings_panel.get("output_folder"))
+            folder.mkdir(exist_ok=True)
+            Image.fromarray(self._adv_np).save(
+                folder / f"adv_{report.engine_name}.png"
+            )
+
         status = "FOOLED" if report.fooled else "Same class"
         self.status.showMessage(
             f"Done — {report.engine_name}  "
-            f"SSIM={report.ssim:.4f}  {status}"
+            f"SSIM={report.ssim:.4f}  {status}  "
+            f"(Ctrl+H for heatmap)"
         )
 
     def _on_error(self, msg):
@@ -389,6 +410,10 @@ class MainWindow(QMainWindow):
         if path:
             Image.fromarray(self._adv_np).save(path)
             self.status.showMessage(f"Saved to {path}")
+
+    def _on_settings_changed(self, settings: dict):
+        self.slider_eps.setValue(settings["default_epsilon"])
+        self.status.showMessage("Settings saved")
 
     def _update_metrics(self, report):
         fc = "#55ff88" if report.fooled else "#ff5555"
