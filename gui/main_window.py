@@ -6,10 +6,10 @@ from PIL import Image
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QPushButton, QComboBox, QSlider, QFileDialog,
-    QStatusBar, QFrame, QSizePolicy
+    QStatusBar, QFrame, QTabWidget
 )
-from PyQt6.QtCore    import Qt, QThread, pyqtSignal
-from PyQt6.QtGui     import QPixmap, QImage, QDragEnterEvent, QDropEvent
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui  import QPixmap, QImage, QDragEnterEvent, QDropEvent
 
 from imageecho.engines import (
     FgsmEngine, PgdEngine, LsbEngine, DctEngine,
@@ -17,6 +17,7 @@ from imageecho.engines import (
     PatchEngine, GaussianEngine, JsmaEngine
 )
 from imageecho.context import EchoContext
+from gui.benchmark_panel import BenchmarkPanel
 
 
 ENGINE_MAP = {
@@ -58,9 +59,8 @@ class AttackWorker(QThread):
 
     def run(self):
         try:
-            engine_cls = ENGINE_MAP[self.engine_name]
-            engine     = engine_cls(epsilon=self.epsilon)
-            ctx        = EchoContext(engine)
+            engine = ENGINE_MAP[self.engine_name](epsilon=self.epsilon)
+            ctx    = EchoContext(engine)
             adv, report = ctx.run(self.image)
             self.finished.emit(adv, report)
         except Exception as e:
@@ -73,7 +73,7 @@ class ImagePanel(QLabel):
     def __init__(self, title: str):
         super().__init__()
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setMinimumSize(400, 350)
+        self.setMinimumSize(400, 320)
         self.setStyleSheet("""
             QLabel {
                 background: #1e1e2e;
@@ -85,13 +85,10 @@ class ImagePanel(QLabel):
         """)
         self.setText(f"{title}\n\nDrag & drop an image\nor click Open")
         self.setAcceptDrops(True)
-        self._title = title
 
-    def set_image(self, img_array: np.ndarray):
-        h, w, c  = img_array.shape
-        bytes_per_line = c * w
-        qimg     = QImage(img_array.data, w, h, bytes_per_line,
-                          QImage.Format.Format_RGB888)
+    def set_image(self, img: np.ndarray):
+        h, w, c  = img.shape
+        qimg     = QImage(img.data, w, h, c * w, QImage.Format.Format_RGB888)
         pixmap   = QPixmap.fromImage(qimg)
         self.setPixmap(pixmap.scaled(
             self.width(), self.height(),
@@ -113,26 +110,63 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ImageEcho — Adversarial ML")
-        self.setMinimumSize(1100, 700)
-        self._image_path = None
-        self._image_np   = None
-        self._adv_np     = None
-        self._worker     = None
+        self.setMinimumSize(1100, 750)
+        self._image_np = None
+        self._adv_np   = None
+        self._worker   = None
         self._setup_ui()
         self._apply_dark_theme()
-
-    # ------------------------------------------------------------------ #
-    #  UI setup                                                            #
-    # ------------------------------------------------------------------ #
 
     def _setup_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
-        root    = QVBoxLayout(central)
-        root.setSpacing(12)
-        root.setContentsMargins(16, 16, 16, 16)
+        root = QVBoxLayout(central)
+        root.setSpacing(0)
+        root.setContentsMargins(0, 0, 0, 0)
 
-        # --- Top toolbar ---
+        self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(True)
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: none;
+                background: #13131f;
+            }
+            QTabBar::tab {
+                background: #1a1a2e;
+                color: #888899;
+                padding: 8px 24px;
+                border: none;
+                font-size: 13px;
+            }
+            QTabBar::tab:selected {
+                background: #2d2d4e;
+                color: #ddddff;
+                border-bottom: 2px solid #7777cc;
+            }
+            QTabBar::tab:hover { background: #222240; }
+        """)
+
+        # Tab 1 — Attack
+        self.tab_attack = QWidget()
+        self._build_attack_tab()
+        self.tabs.addTab(self.tab_attack, "⚡  Attack")
+
+        # Tab 2 — Benchmark
+        self.benchmark_panel = BenchmarkPanel()
+        self.tabs.addTab(self.benchmark_panel, "📊  Benchmark")
+
+        root.addWidget(self.tabs)
+
+        self.status = QStatusBar()
+        self.setStatusBar(self.status)
+        self.status.showMessage("Ready — open an image to begin")
+
+    def _build_attack_tab(self):
+        layout = QVBoxLayout(self.tab_attack)
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+
+        # Toolbar
         toolbar = QHBoxLayout()
 
         self.btn_open = QPushButton("Open Image")
@@ -178,79 +212,65 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.lbl_eps)
         toolbar.addWidget(self.btn_run)
         toolbar.addWidget(self.btn_save)
-        root.addLayout(toolbar)
+        layout.addLayout(toolbar)
 
-        # --- Image panels ---
+        # Image panels
         panels = QHBoxLayout()
         panels.setSpacing(12)
 
-        left_col  = QVBoxLayout()
-        right_col = QVBoxLayout()
+        left  = QVBoxLayout()
+        right = QVBoxLayout()
 
-        self.lbl_orig_title = QLabel("Original")
-        self.lbl_orig_title.setStyleSheet(
-            "color: #ccccee; font-weight: bold; font-size: 13px;")
-
-        self.lbl_adv_title  = QLabel("Adversarial Output")
-        self.lbl_adv_title.setStyleSheet(
-            "color: #ccccee; font-weight: bold; font-size: 13px;")
+        lbl_l = QLabel("Original")
+        lbl_l.setStyleSheet("color:#ccccee;font-weight:bold;font-size:13px;")
+        lbl_r = QLabel("Adversarial Output")
+        lbl_r.setStyleSheet("color:#ccccee;font-weight:bold;font-size:13px;")
 
         self.panel_orig = ImagePanel("Original")
         self.panel_adv  = ImagePanel("Adversarial")
         self.panel_orig.image_dropped.connect(self._load_image)
         self.panel_adv.image_dropped.connect(self._load_image)
 
-        left_col.addWidget(self.lbl_orig_title)
-        left_col.addWidget(self.panel_orig)
+        left.addWidget(lbl_l)
+        left.addWidget(self.panel_orig)
+        right.addWidget(lbl_r)
+        right.addWidget(self.panel_adv)
 
-        right_col.addWidget(self.lbl_adv_title)
-        right_col.addWidget(self.panel_adv)
+        panels.addLayout(left)
+        panels.addLayout(right)
+        layout.addLayout(panels)
 
-        panels.addLayout(left_col)
-        panels.addLayout(right_col)
-        root.addLayout(panels)
+        # Metrics bar
+        mframe = QFrame()
+        mframe.setStyleSheet(
+            "QFrame{background:#1a1a2e;border-radius:8px;padding:4px;}"
+        )
+        ml = QHBoxLayout(mframe)
 
-        # --- Metrics bar ---
-        self.metrics_frame = QFrame()
-        self.metrics_frame.setStyleSheet("""
-            QFrame {
-                background: #1a1a2e;
-                border-radius: 8px;
-                padding: 4px;
-            }
-        """)
-        metrics_layout = QHBoxLayout(self.metrics_frame)
-
-        self.lbl_ssim    = self._metric_label("SSIM", "—")
-        self.lbl_psnr    = self._metric_label("PSNR", "—")
-        self.lbl_delta   = self._metric_label("Mean Δ", "—")
-        self.lbl_pixels  = self._metric_label("Pixels Altered", "—")
-        self.lbl_fooled  = self._metric_label("Result", "—")
+        self.lbl_ssim   = self._metric_label("SSIM",           "—")
+        self.lbl_psnr   = self._metric_label("PSNR",           "—")
+        self.lbl_delta  = self._metric_label("Mean Δ",         "—")
+        self.lbl_pixels = self._metric_label("Pixels Altered", "—")
+        self.lbl_fooled = self._metric_label("Result",         "—")
 
         for lbl in [self.lbl_ssim, self.lbl_psnr,
                     self.lbl_delta, self.lbl_pixels, self.lbl_fooled]:
-            metrics_layout.addWidget(lbl)
-            metrics_layout.addWidget(self._divider())
+            ml.addWidget(lbl)
+            d = QFrame()
+            d.setFrameShape(QFrame.Shape.VLine)
+            d.setStyleSheet("color:#333355;")
+            ml.addWidget(d)
 
-        root.addWidget(self.metrics_frame)
+        layout.addWidget(mframe)
 
-        # --- Status bar ---
-        self.status = QStatusBar()
-        self.setStatusBar(self.status)
-        self.status.showMessage("Ready — open an image to begin")
-
-    def _metric_label(self, title: str, value: str) -> QLabel:
-        lbl = QLabel(f"<b style='color:#888899'>{title}</b><br>"
-                     f"<span style='color:#eeeeff;font-size:15px'>{value}</span>")
+    def _metric_label(self, title, value):
+        lbl = QLabel(
+            f"<b style='color:#888899'>{title}</b><br>"
+            f"<span style='color:#eeeeff;font-size:15px'>{value}</span>"
+        )
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setMinimumWidth(120)
         return lbl
-
-    def _divider(self) -> QFrame:
-        d = QFrame()
-        d.setFrameShape(QFrame.Shape.VLine)
-        d.setStyleSheet("color: #333355;")
-        return d
 
     def _apply_dark_theme(self):
         self.setStyleSheet("""
@@ -267,7 +287,7 @@ class MainWindow(QMainWindow):
                 border-radius: 6px;
                 padding: 4px 14px;
             }
-            QPushButton:hover  { background: #3d3d6e; }
+            QPushButton:hover   { background: #3d3d6e; }
             QPushButton:pressed { background: #5555aa; }
             QPushButton:disabled { background: #1a1a2e; color: #555566; }
             QComboBox {
@@ -298,8 +318,6 @@ class MainWindow(QMainWindow):
         """)
 
     # ------------------------------------------------------------------ #
-    #  Event handlers                                                      #
-    # ------------------------------------------------------------------ #
 
     def _open_image(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -310,20 +328,25 @@ class MainWindow(QMainWindow):
             self._load_image(path)
 
     def _load_image(self, path: str):
-        self._image_path = path
-        self._image_np   = np.array(Image.open(path).convert("RGB"))
+        self._image_np = np.array(Image.open(path).convert("RGB"))
         self.panel_orig.set_image(self._image_np)
         self.panel_adv.setText("Adversarial Output\n\nRun an attack to see result")
         self.btn_run.setEnabled(True)
-        self.status.showMessage(f"Loaded: {Path(path).name}  "
-                                f"({self._image_np.shape[1]}x{self._image_np.shape[0]})")
+        epsilon = self.slider_eps.value() / 255.0
+        self.benchmark_panel.set_image(self._image_np, epsilon)
+        self.status.showMessage(
+            f"Loaded: {Path(path).name}  "
+            f"({self._image_np.shape[1]}x{self._image_np.shape[0]})"
+        )
         self._reset_metrics()
 
-    def _engine_changed(self, name: str):
+    def _engine_changed(self, name):
         self.lbl_desc.setText(ENGINE_DESC.get(name, ""))
 
-    def _eps_changed(self, val: int):
+    def _eps_changed(self, val):
         self.lbl_eps.setText(f"ε = {val}/255")
+        if self._image_np is not None:
+            self.benchmark_panel.set_image(self._image_np, val / 255.0)
 
     def _run_attack(self):
         if self._image_np is None:
@@ -332,14 +355,15 @@ class MainWindow(QMainWindow):
         self.btn_save.setEnabled(False)
         engine_name = self.combo_engine.currentText()
         epsilon     = self.slider_eps.value() / 255.0
-        self.status.showMessage(f"Running {engine_name} attack  ε={epsilon:.4f} ...")
-
+        self.status.showMessage(
+            f"Running {engine_name}  ε={epsilon:.4f} ..."
+        )
         self._worker = AttackWorker(self._image_np, engine_name, epsilon)
-        self._worker.finished.connect(self._on_attack_done)
-        self._worker.error.connect(self._on_attack_error)
+        self._worker.finished.connect(self._on_done)
+        self._worker.error.connect(self._on_error)
         self._worker.start()
 
-    def _on_attack_done(self, adv_np, report):
+    def _on_done(self, adv_np, report):
         self._adv_np = adv_np
         self.panel_adv.set_image(adv_np)
         self.btn_run.setEnabled(True)
@@ -347,10 +371,11 @@ class MainWindow(QMainWindow):
         self._update_metrics(report)
         status = "FOOLED" if report.fooled else "Same class"
         self.status.showMessage(
-            f"Done — {report.engine_name}  SSIM={report.ssim:.4f}  {status}"
+            f"Done — {report.engine_name}  "
+            f"SSIM={report.ssim:.4f}  {status}"
         )
 
-    def _on_attack_error(self, msg: str):
+    def _on_error(self, msg):
         self.btn_run.setEnabled(True)
         self.status.showMessage(f"Error: {msg}")
 
@@ -358,7 +383,7 @@ class MainWindow(QMainWindow):
         if self._adv_np is None:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Adversarial Image", "adversarial.png",
+            self, "Save Output", "adversarial.png",
             "PNG (*.png);;JPEG (*.jpg)"
         )
         if path:
@@ -366,9 +391,8 @@ class MainWindow(QMainWindow):
             self.status.showMessage(f"Saved to {path}")
 
     def _update_metrics(self, report):
-        fooled_color = "#55ff88" if report.fooled else "#ff5555"
-        fooled_text  = "FOOLED ✓" if report.fooled else "Same Class"
-
+        fc = "#55ff88" if report.fooled else "#ff5555"
+        ft = "FOOLED ✓" if report.fooled else "Same Class"
         self.lbl_ssim.setText(
             f"<b style='color:#888899'>SSIM</b><br>"
             f"<span style='color:#eeeeff;font-size:15px'>{report.ssim:.4f}</span>")
@@ -383,13 +407,16 @@ class MainWindow(QMainWindow):
             f"<span style='color:#eeeeff;font-size:15px'>{report.pixels_altered:,}</span>")
         self.lbl_fooled.setText(
             f"<b style='color:#888899'>Result</b><br>"
-            f"<span style='color:{fooled_color};font-size:15px'>{fooled_text}</span>")
+            f"<span style='color:{fc};font-size:15px'>{ft}</span>")
 
     def _reset_metrics(self):
         for lbl, title in [
-            (self.lbl_ssim, "SSIM"), (self.lbl_psnr, "PSNR"),
-            (self.lbl_delta, "Mean Δ"), (self.lbl_pixels, "Pixels Altered"),
-            (self.lbl_fooled, "Result")
+            (self.lbl_ssim,   "SSIM"),
+            (self.lbl_psnr,   "PSNR"),
+            (self.lbl_delta,  "Mean Δ"),
+            (self.lbl_pixels, "Pixels Altered"),
+            (self.lbl_fooled, "Result"),
         ]:
-            lbl.setText(f"<b style='color:#888899'>{title}</b><br>"
-                        f"<span style='color:#eeeeff;font-size:15px'>—</span>")
+            lbl.setText(
+                f"<b style='color:#888899'>{title}</b><br>"
+                f"<span style='color:#eeeeff;font-size:15px'>—</span>")
