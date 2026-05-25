@@ -57,8 +57,8 @@ def print_report(report, elapsed: float):
     t.add_row("Epsilon",           f"{report.epsilon:.5f}  ({round(report.epsilon*255)}/255)")
     t.add_row("SSIM",              f"{report.ssim:.4f}")
     t.add_row("PSNR",              f"{report.psnr:.1f} dB")
-    t.add_row("Mean Δ",            f"{report.mean_delta:.3f}")
-    t.add_row("Max Δ",             f"{report.max_delta:.1f}")
+    t.add_row("Mean ?",            f"{report.mean_delta:.3f}")
+    t.add_row("Max ?",             f"{report.max_delta:.1f}")
     t.add_row("Pixels Altered",    f"{report.pixels_altered:,}")
     t.add_row("Original Class",    str(report.original_class))
     t.add_row("Perturbed Class",   str(report.perturbed_class))
@@ -70,9 +70,9 @@ def print_report(report, elapsed: float):
     console.print(t)
 
 
-# ──────────────────────────────────────────────────────────────────────────
+# --------------------------------------------------------------------------
 # Commands
-# ──────────────────────────────────────────────────────────────────────────
+# --------------------------------------------------------------------------
 
 def cmd_run(args):
     """Run a single attack on one image."""
@@ -88,7 +88,7 @@ def cmd_run(args):
     console.print(Panel(
         f"[bold #7777cc]ImageEcho[/bold #7777cc]  —  "
         f"engine=[bold]{args.engine}[/bold]  "
-        f"ε={args.epsilon}/255",
+        f"e={args.epsilon}/255",
         expand=False
     ))
 
@@ -106,7 +106,7 @@ def cmd_run(args):
 
     out = args.output or f"adv_{args.engine}.png"
     save_image(adv, out)
-    console.print(f"\n[green]Saved →[/green] {out}")
+    console.print(f"\n[green]Saved ?[/green] {out}")
 
 
 def cmd_benchmark(args):
@@ -117,7 +117,7 @@ def cmd_benchmark(args):
 
     console.print(Panel(
         f"[bold #7777cc]ImageEcho Benchmark[/bold #7777cc]  —  "
-        f"ε={args.epsilon}/255  —  all 10 engines",
+        f"e={args.epsilon}/255  —  all 10 engines",
         expand=False
     ))
 
@@ -147,7 +147,7 @@ def cmd_benchmark(args):
     t.add_column("Engine",          style="#aaaacc", width=12)
     t.add_column("SSIM",            style="#eeeeff", width=8)
     t.add_column("PSNR (dB)",       style="#eeeeff", width=10)
-    t.add_column("Mean Δ",          style="#eeeeff", width=8)
+    t.add_column("Mean ?",          style="#eeeeff", width=8)
     t.add_column("Pixels Altered",  style="#eeeeff", width=16)
     t.add_column("Fooled",          width=10)
     t.add_column("Time (s)",        style="#888899", width=10)
@@ -176,15 +176,15 @@ def cmd_benchmark(args):
     # Save markdown report if requested
     if args.save_report:
         lines = ["# ImageEcho Benchmark Report\n\n"]
-        lines.append("| Engine | SSIM | PSNR | Mean Δ | Fooled |\n")
+        lines.append("| Engine | SSIM | PSNR | Mean ? | Fooled |\n")
         lines.append("|--------|------|------|--------|--------|\n")
         for name, r, _ in results:
             lines.append(
                 f"| {name} | {r.ssim:.4f} | {r.psnr:.1f} | "
                 f"{r.mean_delta:.2f} | {'YES' if r.fooled else 'NO'} |\n"
             )
-        Path("benchmark_report.md").write_text("".join(lines))
-        console.print("[green]Report saved →[/green] benchmark_report.md")
+        Path("benchmark_report.md").write_text("".join(lines), encoding='utf-8')
+        console.print("[green]Report saved ?[/green] benchmark_report.md")
 
 
 def cmd_batch(args):
@@ -213,7 +213,7 @@ def cmd_batch(args):
     console.print(Panel(
         f"[bold #7777cc]ImageEcho Batch[/bold #7777cc]  —  "
         f"{len(images)} images  ×  {len(engines_to_run)} engine(s)  —  "
-        f"ε={args.epsilon}/255",
+        f"e={args.epsilon}/255",
         expand=False
     ))
 
@@ -238,9 +238,9 @@ def cmd_batch(args):
     )
 
 
-# ──────────────────────────────────────────────────────────────────────────
+# --------------------------------------------------------------------------
 # Argument parser
-# ──────────────────────────────────────────────────────────────────────────
+# --------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
