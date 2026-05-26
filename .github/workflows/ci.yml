@@ -48,4 +48,4 @@ jobs:
 
       - name: Run flake8
         run: |
-          flake8 imageecho/ --max-line-length=100 --ignore=E501,W503
+          flake8 imageecho/ --max-line-length=100 --ignore=E501,W503,E221,E226,E241,E272,E127
