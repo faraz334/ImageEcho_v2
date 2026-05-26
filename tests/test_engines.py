@@ -135,5 +135,5 @@ def test_epsilon_respected(engine_cls):
     adv, report = _run_engine(engine_cls)
     # max delta in [0,1] space should be close to epsilon
     max_delta_norm = report.max_delta / 255.0
-    assert max_delta_norm <= EPSILON * 1.1, \
+    assert max_delta_norm <= EPSILON + (1.0 / 255.0), \
         f"{engine_cls.__name__} max delta {max_delta_norm:.4f} exceeds epsilon {EPSILON:.4f}"
