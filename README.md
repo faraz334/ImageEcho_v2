@@ -55,7 +55,12 @@ and craft invisible perturbations that transfer across architectures.
 | PGD | Projected Gradient Descent | Iterative, gold-standard |
 | DeepFool | Boundary Crossing | Finds minimum distance to boundary |
 | AutoPGD | Adaptive PGD | Adjusts step size automatically |
-| ... | ... | ... |
+| JSMA | Jacobian Saliency Map | Perturbs only key pixels |
+| C&W | Carlini-Wagner L2 | Optimization-based |
+| Patch | Adversarial Patch | Works in physical world |
+| Gaussian | Frequency-weighted noise | Exploits human vision limits |
+| LSB | Least Significant Bit | Bit-level manipulation |
+| DCT | Discrete Cosine Transform | Frequency domain attack |
 
 ---
 
