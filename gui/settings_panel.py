@@ -1,8 +1,16 @@
-﻿from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QSpinBox, QDoubleSpinBox, QPushButton,
-    QGroupBox, QLineEdit, QFileDialog, QCheckBox,
-    QFrame
+from PyQt6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QSpinBox,
+    QDoubleSpinBox,
+    QPushButton,
+    QGroupBox,
+    QLineEdit,
+    QFileDialog,
+    QCheckBox,
+    QFrame,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 import json
@@ -11,11 +19,11 @@ from pathlib import Path
 SETTINGS_FILE = Path("imageecho_settings.json")
 
 DEFAULT_SETTINGS = {
-    "default_epsilon":    8,
-    "ssim_threshold":     0.95,
-    "output_folder":      "outputs",
-    "thread_count":       1,
-    "auto_save":          False,
+    "default_epsilon": 8,
+    "ssim_threshold": 0.95,
+    "output_folder": "outputs",
+    "thread_count": 1,
+    "auto_save": False,
 }
 
 
@@ -48,14 +56,12 @@ class SettingsPanel(QWidget):
         root.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         title = QLabel("Settings")
-        title.setStyleSheet(
-            "color:#ccccee; font-weight:bold; font-size:16px;"
-        )
+        title.setStyleSheet("color:#ccccee; font-weight:bold; font-size:16px;")
         root.addWidget(title)
 
         # --- Attack defaults ---
         grp_attack = self._group("Attack Defaults")
-        gl         = QVBoxLayout(grp_attack)
+        gl = QVBoxLayout(grp_attack)
 
         row1 = QHBoxLayout()
         row1.addWidget(QLabel("Default epsilon (x/255):"))
@@ -84,7 +90,7 @@ class SettingsPanel(QWidget):
 
         # --- Output ---
         grp_output = self._group("Output")
-        ol         = QVBoxLayout(grp_output)
+        ol = QVBoxLayout(grp_output)
 
         row3 = QHBoxLayout()
         row3.addWidget(QLabel("Output folder:"))
@@ -98,7 +104,8 @@ class SettingsPanel(QWidget):
         ol.addLayout(row3)
 
         row4 = QHBoxLayout()
-        self.chk_autosave = QCheckBox("Auto-save adversarial images after each attack")
+        self.chk_autosave = QCheckBox(
+            "Auto-save adversarial images after each attack")
         self.chk_autosave.setChecked(self._settings["auto_save"])
         row4.addWidget(self.chk_autosave)
         row4.addStretch()
@@ -108,18 +115,18 @@ class SettingsPanel(QWidget):
 
         # --- Keyboard shortcuts info ---
         grp_keys = self._group("Keyboard Shortcuts")
-        kl       = QVBoxLayout(grp_keys)
+        kl = QVBoxLayout(grp_keys)
 
         shortcuts = [
-            ("Ctrl + O",  "Open image"),
-            ("Ctrl + R",  "Run attack"),
-            ("Ctrl + S",  "Save output"),
-            ("Ctrl + B",  "Go to Benchmark tab"),
-            ("Ctrl + H",  "Go to Heatmap tab"),
+            ("Ctrl + O", "Open image"),
+            ("Ctrl + R", "Run attack"),
+            ("Ctrl + S", "Save output"),
+            ("Ctrl + B", "Go to Benchmark tab"),
+            ("Ctrl + H", "Go to Heatmap tab"),
         ]
         for key, desc in shortcuts:
             row = QHBoxLayout()
-            lbl_key  = QLabel(key)
+            lbl_key = QLabel(key)
             lbl_key.setStyleSheet(
                 "background:#2d2d4e; color:#aaaaff; "
                 "border-radius:4px; padding:2px 8px; "
@@ -135,7 +142,7 @@ class SettingsPanel(QWidget):
 
         # --- Save / Reset buttons ---
         btn_row = QHBoxLayout()
-        btn_save  = QPushButton("Save Settings")
+        btn_save = QPushButton("Save Settings")
         btn_save.setFixedHeight(36)
         btn_save.clicked.connect(self._apply)
 
@@ -177,10 +184,10 @@ class SettingsPanel(QWidget):
     def _apply(self):
         self._settings = {
             "default_epsilon": self.spin_eps.value(),
-            "ssim_threshold":  self.spin_ssim.value(),
-            "output_folder":   self.edit_folder.text(),
-            "auto_save":       self.chk_autosave.isChecked(),
-            "thread_count":    1,
+            "ssim_threshold": self.spin_ssim.value(),
+            "output_folder": self.edit_folder.text(),
+            "auto_save": self.chk_autosave.isChecked(),
+            "thread_count": 1,
         }
         self._save()
         self.settings_changed.emit(self._settings)

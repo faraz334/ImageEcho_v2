@@ -1,12 +1,18 @@
-﻿import numpy as np
+import numpy as np
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QComboBox, QSizePolicy
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QComboBox,
+    QSizePolicy,
 )
 from PyQt6.QtCore import Qt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib
+
 matplotlib.use("QtAgg")
 
 
@@ -15,15 +21,16 @@ class HeatmapPanel(QWidget):
     Shows pixel difference heatmap between original and adversarial image.
     Visualises exactly which pixels changed and by how much.
     """
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._orig = None
-        self._adv  = None
+        self._adv = None
         self._setup_ui()
 
     def set_images(self, original: np.ndarray, adversarial: np.ndarray):
         self._orig = original
-        self._adv  = adversarial
+        self._adv = adversarial
         self.btn_refresh.setEnabled(True)
         self._draw()
 
@@ -36,16 +43,16 @@ class HeatmapPanel(QWidget):
         top = QHBoxLayout()
 
         lbl = QLabel("Pixel Difference Visualiser")
-        lbl.setStyleSheet(
-            "color:#ccccee; font-weight:bold; font-size:14px;"
-        )
+        lbl.setStyleSheet("color:#ccccee; font-weight:bold; font-size:14px;")
 
         self.combo_mode = QComboBox()
-        self.combo_mode.addItems([
-            "Heatmap (magnitude)",
-            "Per-channel diff",
-            "Side by side",
-        ])
+        self.combo_mode.addItems(
+            [
+                "Heatmap (magnitude)",
+                "Per-channel diff",
+                "Side by side",
+            ]
+        )
         self.combo_mode.setFixedHeight(32)
         self.combo_mode.currentIndexChanged.connect(self._draw)
 
@@ -66,11 +73,10 @@ class HeatmapPanel(QWidget):
         root.addWidget(self.lbl_info)
 
         # Canvas
-        self.fig    = Figure(figsize=(10, 4), facecolor="#13131f")
+        self.fig = Figure(figsize=(10, 4), facecolor="#13131f")
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
         root.addWidget(self.canvas)
 
@@ -82,7 +88,7 @@ class HeatmapPanel(QWidget):
         self.fig.clear()
 
         orig = self._orig.astype(np.float32)
-        adv  = self._adv.astype(np.float32)
+        adv = self._adv.astype(np.float32)
         diff = np.abs(orig - adv)
 
         if mode == 0:
@@ -95,10 +101,10 @@ class HeatmapPanel(QWidget):
         self.canvas.draw()
 
         # Update info label
-        total_px    = diff.shape[0] * diff.shape[1]
-        altered     = int((diff.sum(axis=2) > 0).sum())
-        mean_delta  = diff.mean()
-        max_delta   = diff.max()
+        total_px = diff.shape[0] * diff.shape[1]
+        altered = int((diff.sum(axis=2) > 0).sum())
+        mean_delta = diff.mean()
+        max_delta = diff.max()
         self.lbl_info.setText(
             f"Pixels altered: {altered:,} / {total_px:,}  |  "
             f"Mean Δ: {mean_delta:.3f}  |  Max Δ: {max_delta:.1f}"
@@ -112,14 +118,17 @@ class HeatmapPanel(QWidget):
         magnitude = diff.sum(axis=2)
         im = ax.imshow(magnitude, cmap="hot", interpolation="nearest")
         self.fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
-        ax.set_title("Pixel Change Magnitude  (brighter = more change)",
-                     color="#ccccee", fontsize=11)
+        ax.set_title(
+            "Pixel Change Magnitude  (brighter = more change)",
+            color="#ccccee",
+            fontsize=11,
+        )
         ax.axis("off")
         self.fig.tight_layout()
 
     def _draw_per_channel(self, diff: np.ndarray):
-        titles  = ["Red channel Δ", "Green channel Δ", "Blue channel Δ"]
-        cmaps   = ["Reds", "Greens", "Blues"]
+        titles = ["Red channel Δ", "Green channel Δ", "Blue channel Δ"]
+        cmaps = ["Reds", "Greens", "Blues"]
 
         for i in range(3):
             ax = self.fig.add_subplot(1, 3, i + 1)
@@ -135,7 +144,7 @@ class HeatmapPanel(QWidget):
 
     def _draw_side_by_side(self, orig, adv, diff):
         titles = ["Original", "Adversarial", "Difference (×10)"]
-        imgs   = [
+        imgs = [
             orig.astype(np.uint8),
             adv.astype(np.uint8),
             np.clip(diff * 10, 0, 255).astype(np.uint8),

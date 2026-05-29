@@ -1,68 +1,90 @@
-﻿import sys
+import sys
 import numpy as np
 from pathlib import Path
 from PIL import Image
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-    QLabel, QPushButton, QComboBox, QSlider, QFileDialog,
-    QStatusBar, QFrame, QTabWidget
+    QMainWindow,
+    QWidget,
+    QHBoxLayout,
+    QVBoxLayout,
+    QLabel,
+    QPushButton,
+    QComboBox,
+    QSlider,
+    QFileDialog,
+    QStatusBar,
+    QFrame,
+    QTabWidget,
 )
-from PyQt6.QtCore    import Qt, QThread, pyqtSignal
-from PyQt6.QtGui     import QPixmap, QImage, QDragEnterEvent, QDropEvent, QKeySequence, QShortcut
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import (
+    QPixmap,
+    QImage,
+    QDragEnterEvent,
+    QDropEvent,
+    QKeySequence,
+    QShortcut,
+)
 
 from imageecho.engines import (
-    FgsmEngine, PgdEngine, LsbEngine, DctEngine,
-    CwEngine, DeepFoolEngine, AutoPgdEngine,
-    PatchEngine, GaussianEngine, JsmaEngine
+    FgsmEngine,
+    PgdEngine,
+    LsbEngine,
+    DctEngine,
+    CwEngine,
+    DeepFoolEngine,
+    AutoPgdEngine,
+    PatchEngine,
+    GaussianEngine,
+    JsmaEngine,
 )
-from imageecho.context        import EchoContext
-from gui.benchmark_panel      import BenchmarkPanel
-from gui.heatmap_panel        import HeatmapPanel
-from gui.settings_panel       import SettingsPanel
-
+from imageecho.context import EchoContext
+from gui.benchmark_panel import BenchmarkPanel
+from gui.heatmap_panel import HeatmapPanel
+from gui.settings_panel import SettingsPanel
 
 ENGINE_MAP = {
-    "FGSM":      FgsmEngine,
-    "PGD":       PgdEngine,
-    "LSB":       LsbEngine,
-    "DCT":       DctEngine,
-    "C&W":       CwEngine,
-    "DeepFool":  DeepFoolEngine,
-    "AutoPGD":   AutoPgdEngine,
-    "Patch":     PatchEngine,
-    "Gaussian":  GaussianEngine,
-    "JSMA":      JsmaEngine,
+    "FGSM": FgsmEngine,
+    "PGD": PgdEngine,
+    "LSB": LsbEngine,
+    "DCT": DctEngine,
+    "C&W": CwEngine,
+    "DeepFool": DeepFoolEngine,
+    "AutoPGD": AutoPgdEngine,
+    "Patch": PatchEngine,
+    "Gaussian": GaussianEngine,
+    "JSMA": JsmaEngine,
 }
 
 ENGINE_DESC = {
-    "FGSM":     "Fast Gradient Sign — one step, fast",
-    "PGD":      "Projected Gradient Descent — iterative, strong",
-    "LSB":      "Least Significant Bit flipping",
-    "DCT":      "Frequency domain — DCT high-freq injection",
-    "C&W":      "Carlini-Wagner L2 — tightest perturbation",
+    "FGSM": "Fast Gradient Sign — one step, fast",
+    "PGD": "Projected Gradient Descent — iterative, strong",
+    "LSB": "Least Significant Bit flipping",
+    "DCT": "Frequency domain — DCT high-freq injection",
+    "C&W": "Carlini-Wagner L2 — tightest perturbation",
     "DeepFool": "Minimal boundary crossing perturbation",
-    "AutoPGD":  "Adaptive step PGD with restarts",
-    "Patch":    "Concentrated adversarial patch region",
+    "AutoPGD": "Adaptive step PGD with restarts",
+    "Patch": "Concentrated adversarial patch region",
     "Gaussian": "Frequency-weighted structured noise",
-    "JSMA":     "Jacobian Saliency Map — sparse pixel attack",
+    "JSMA": "Jacobian Saliency Map — sparse pixel attack",
 }
 
 
 class AttackWorker(QThread):
     finished = pyqtSignal(object, object)
-    error    = pyqtSignal(str)
+    error = pyqtSignal(str)
 
     def __init__(self, image, engine_name, epsilon):
         super().__init__()
-        self.image       = image
+        self.image = image
         self.engine_name = engine_name
-        self.epsilon     = epsilon
+        self.epsilon = epsilon
 
     def run(self):
         try:
             engine = ENGINE_MAP[self.engine_name](epsilon=self.epsilon)
-            ctx    = EchoContext(engine)
+            ctx = EchoContext(engine)
             adv, report = ctx.run(self.image)
             self.finished.emit(adv, report)
         except Exception as e:
@@ -90,13 +112,16 @@ class ImagePanel(QLabel):
 
     def set_image(self, img: np.ndarray):
         h, w, c = img.shape
-        qimg    = QImage(img.data, w, h, c * w, QImage.Format.Format_RGB888)
-        pixmap  = QPixmap.fromImage(qimg)
-        self.setPixmap(pixmap.scaled(
-            self.width(), self.height(),
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
-        ))
+        qimg = QImage(img.data, w, h, c * w, QImage.Format.Format_RGB888)
+        pixmap = QPixmap.fromImage(qimg)
+        self.setPixmap(
+            pixmap.scaled(
+                self.width(),
+                self.height(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
 
     def dragEnterEvent(self, e: QDragEnterEvent):
         if e.mimeData().hasUrls():
@@ -114,13 +139,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("ImageEcho — Adversarial ML")
         self.setMinimumSize(1100, 750)
         self._image_np = None
-        self._adv_np   = None
-        self._worker   = None
+        self._adv_np = None
+        self._worker = None
 
         # Create panels FIRST before any tab building
-        self.settings_panel  = SettingsPanel()
+        self.settings_panel = SettingsPanel()
         self.benchmark_panel = BenchmarkPanel()
-        self.heatmap_panel   = HeatmapPanel()
+        self.heatmap_panel = HeatmapPanel()
 
         self._setup_ui()
         self._setup_shortcuts()
@@ -150,12 +175,12 @@ class MainWindow(QMainWindow):
 
         self.tab_attack = QWidget()
         self._build_attack_tab()
-        self.tabs.addTab(self.tab_attack,      "⚡  Attack")
+        self.tabs.addTab(self.tab_attack, "⚡  Attack")
         self.tabs.addTab(self.benchmark_panel, "📊  Benchmark")
-        self.tabs.addTab(self.heatmap_panel,   "🔥  Heatmap")
+        self.tabs.addTab(self.heatmap_panel, "🔥  Heatmap")
 
         self.settings_panel.settings_changed.connect(self._on_settings_changed)
-        self.tabs.addTab(self.settings_panel,  "⚙️  Settings")
+        self.tabs.addTab(self.settings_panel, "⚙️  Settings")
 
         root.addWidget(self.tabs)
 
@@ -217,7 +242,7 @@ class MainWindow(QMainWindow):
 
         panels = QHBoxLayout()
         panels.setSpacing(12)
-        left  = QVBoxLayout()
+        left = QVBoxLayout()
         right = QVBoxLayout()
 
         lbl_l = QLabel("Original")
@@ -226,7 +251,7 @@ class MainWindow(QMainWindow):
         lbl_r.setStyleSheet("color:#ccccee;font-weight:bold;font-size:13px;")
 
         self.panel_orig = ImagePanel("Original")
-        self.panel_adv  = ImagePanel("Adversarial")
+        self.panel_adv = ImagePanel("Adversarial")
         self.panel_orig.image_dropped.connect(self._load_image)
         self.panel_adv.image_dropped.connect(self._load_image)
 
@@ -244,14 +269,19 @@ class MainWindow(QMainWindow):
         )
         ml = QHBoxLayout(mframe)
 
-        self.lbl_ssim   = self._metric_label("SSIM",           "—")
-        self.lbl_psnr   = self._metric_label("PSNR",           "—")
-        self.lbl_delta  = self._metric_label("Mean Δ",         "—")
+        self.lbl_ssim = self._metric_label("SSIM", "—")
+        self.lbl_psnr = self._metric_label("PSNR", "—")
+        self.lbl_delta = self._metric_label("Mean Δ", "—")
         self.lbl_pixels = self._metric_label("Pixels Altered", "—")
-        self.lbl_fooled = self._metric_label("Result",         "—")
+        self.lbl_fooled = self._metric_label("Result", "—")
 
-        for lbl in [self.lbl_ssim, self.lbl_psnr,
-                    self.lbl_delta, self.lbl_pixels, self.lbl_fooled]:
+        for lbl in [
+            self.lbl_ssim,
+            self.lbl_psnr,
+            self.lbl_delta,
+            self.lbl_pixels,
+            self.lbl_fooled,
+        ]:
             ml.addWidget(lbl)
             d = QFrame()
             d.setFrameShape(QFrame.Shape.VLine)
@@ -270,13 +300,18 @@ class MainWindow(QMainWindow):
         return lbl
 
     def _setup_shortcuts(self):
-        QShortcut(QKeySequence("Ctrl+O"), self).activated.connect(self._open_image)
-        QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self._run_attack)
-        QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self._save_output)
+        QShortcut(QKeySequence("Ctrl+O"),
+                  self).activated.connect(self._open_image)
+        QShortcut(QKeySequence("Ctrl+R"),
+                  self).activated.connect(self._run_attack)
+        QShortcut(QKeySequence("Ctrl+S"),
+                  self).activated.connect(self._save_output)
         QShortcut(QKeySequence("Ctrl+B"), self).activated.connect(
-            lambda: self.tabs.setCurrentIndex(1))
+            lambda: self.tabs.setCurrentIndex(1)
+        )
         QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(
-            lambda: self.tabs.setCurrentIndex(2))
+            lambda: self.tabs.setCurrentIndex(2)
+        )
 
     def _apply_dark_theme(self):
         self.setStyleSheet("""
@@ -332,8 +367,7 @@ class MainWindow(QMainWindow):
 
     def _open_image(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open Image", "",
-            "Images (*.png *.jpg *.jpeg *.bmp *.webp)"
+            self, "Open Image", "", "Images (*.png *.jpg *.jpeg *.bmp *.webp)"
         )
         if path:
             self._load_image(path)
@@ -341,7 +375,8 @@ class MainWindow(QMainWindow):
     def _load_image(self, path: str):
         self._image_np = np.array(Image.open(path).convert("RGB"))
         self.panel_orig.set_image(self._image_np)
-        self.panel_adv.setText("Adversarial Output\n\nRun an attack to see result")
+        self.panel_adv.setText(
+            "Adversarial Output\n\nRun an attack to see result")
         self.btn_run.setEnabled(True)
         epsilon = self.slider_eps.value() / 255.0
         self.benchmark_panel.set_image(self._image_np, epsilon)
@@ -365,10 +400,8 @@ class MainWindow(QMainWindow):
         self.btn_run.setEnabled(False)
         self.btn_save.setEnabled(False)
         engine_name = self.combo_engine.currentText()
-        epsilon     = self.slider_eps.value() / 255.0
-        self.status.showMessage(
-            f"Running {engine_name}  ε={epsilon:.4f} ..."
-        )
+        epsilon = self.slider_eps.value() / 255.0
+        self.status.showMessage(f"Running {engine_name}  ε={epsilon:.4f} ...")
         self._worker = AttackWorker(self._image_np, engine_name, epsilon)
         self._worker.finished.connect(self._on_done)
         self._worker.error.connect(self._on_error)
@@ -386,8 +419,7 @@ class MainWindow(QMainWindow):
             folder = Path(self.settings_panel.get("output_folder"))
             folder.mkdir(exist_ok=True)
             Image.fromarray(self._adv_np).save(
-                folder / f"adv_{report.engine_name}.png"
-            )
+                folder / f"adv_{report.engine_name}.png")
 
         status = "FOOLED" if report.fooled else "Same class"
         self.status.showMessage(
@@ -404,8 +436,7 @@ class MainWindow(QMainWindow):
         if self._adv_np is None:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Output", "adversarial.png",
-            "PNG (*.png);;JPEG (*.jpg)"
+            self, "Save Output", "adversarial.png", "PNG (*.png);;JPEG (*.jpg)"
         )
         if path:
             Image.fromarray(self._adv_np).save(path)
@@ -420,28 +451,34 @@ class MainWindow(QMainWindow):
         ft = "FOOLED ✓" if report.fooled else "Same Class"
         self.lbl_ssim.setText(
             f"<b style='color:#888899'>SSIM</b><br>"
-            f"<span style='color:#eeeeff;font-size:15px'>{report.ssim:.4f}</span>")
+            f"<span style='color:#eeeeff;font-size:15px'>{report.ssim:.4f}</span>"
+        )
         self.lbl_psnr.setText(
             f"<b style='color:#888899'>PSNR</b><br>"
-            f"<span style='color:#eeeeff;font-size:15px'>{report.psnr:.1f} dB</span>")
+            f"<span style='color:#eeeeff;font-size:15px'>{report.psnr:.1f} dB</span>"
+        )
         self.lbl_delta.setText(
             f"<b style='color:#888899'>Mean Δ</b><br>"
-            f"<span style='color:#eeeeff;font-size:15px'>{report.mean_delta:.2f}</span>")
+            f"<span style='color:#eeeeff;font-size:15px'>{report.mean_delta:.2f}</span>"
+        )
         self.lbl_pixels.setText(
             f"<b style='color:#888899'>Pixels Altered</b><br>"
-            f"<span style='color:#eeeeff;font-size:15px'>{report.pixels_altered:,}</span>")
+            f"<span style='color:#eeeeff;font-size:15px'>{report.pixels_altered:,}</span>"
+        )
         self.lbl_fooled.setText(
             f"<b style='color:#888899'>Result</b><br>"
-            f"<span style='color:{fc};font-size:15px'>{ft}</span>")
+            f"<span style='color:{fc};font-size:15px'>{ft}</span>"
+        )
 
     def _reset_metrics(self):
         for lbl, title in [
-            (self.lbl_ssim,   "SSIM"),
-            (self.lbl_psnr,   "PSNR"),
-            (self.lbl_delta,  "Mean Δ"),
+            (self.lbl_ssim, "SSIM"),
+            (self.lbl_psnr, "PSNR"),
+            (self.lbl_delta, "Mean Δ"),
             (self.lbl_pixels, "Pixels Altered"),
             (self.lbl_fooled, "Result"),
         ]:
             lbl.setText(
                 f"<b style='color:#888899'>{title}</b><br>"
-                f"<span style='color:#eeeeff;font-size:15px'>—</span>")
+                f"<span style='color:#eeeeff;font-size:15px'>—</span>"
+            )

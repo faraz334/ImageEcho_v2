@@ -1,4 +1,4 @@
-﻿import copy
+import copy
 from pathlib import Path
 from typing import Optional
 import numpy as np
@@ -20,22 +20,28 @@ class EchoContext:
             Image.fromarray(adv).save(save_to)
         return adv, report
 
-    def runOptimal(self, image_source, ssim_threshold=0.95,
-                   eps_min=1/255, eps_max=32/255,
-                   iterations=16, target_class=None):
-        image     = self._load(image_source)
-        best_adv  = None
-        best_rpt  = None
-        lo, hi    = eps_min, eps_max
+    def runOptimal(
+        self,
+        image_source,
+        ssim_threshold=0.95,
+        eps_min=1 / 255,
+        eps_max=32 / 255,
+        iterations=16,
+        target_class=None,
+    ):
+        image = self._load(image_source)
+        best_adv = None
+        best_rpt = None
+        lo, hi = eps_min, eps_max
 
         for i in range(iterations):
             mid = (lo + hi) / 2.0
             print(f"  [runOptimal] iter {i+1}/{iterations}  eps={mid:.5f}")
-            engine_copy         = copy.deepcopy(self._engine)
+            engine_copy = copy.deepcopy(self._engine)
             engine_copy.epsilon = mid
-            adv, rpt            = engine_copy.apply(image, target_class=target_class)
+            adv, rpt = engine_copy.apply(image, target_class=target_class)
             if rpt.ssim >= ssim_threshold:
-                lo       = mid
+                lo = mid
                 best_adv = adv
                 best_rpt = rpt
             else:
@@ -43,7 +49,8 @@ class EchoContext:
 
         if best_rpt is None:
             self._engine.epsilon = eps_min
-            best_adv, best_rpt   = self._engine.apply(image, target_class=target_class)
+            best_adv, best_rpt = self._engine.apply(
+                image, target_class=target_class)
 
         return best_adv, best_rpt
 
