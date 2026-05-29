@@ -10,7 +10,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QFileDialog,
     QCheckBox,
-    QFrame,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 import json

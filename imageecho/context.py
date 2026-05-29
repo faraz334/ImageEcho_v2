@@ -1,6 +1,4 @@
 import copy
-from pathlib import Path
-from typing import Optional
 import numpy as np
 from PIL import Image
 from .base_engine import BaseEngine

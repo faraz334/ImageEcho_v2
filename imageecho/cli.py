@@ -8,8 +8,6 @@ from PIL import Image
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
-from rich import print as rprint
 from tqdm import tqdm
 
 from imageecho.engines import (

@@ -1,7 +1,6 @@
 import numpy as np
-import pytest
 from imageecho.context import EchoContext
-from imageecho.engines import FgsmEngine, PgdEngine, GaussianEngine
+from imageecho.engines import FgsmEngine, GaussianEngine
 
 TEST_IMAGE = np.random.randint(0, 255, (64, 64, 3), dtype=np.uint8)
 
